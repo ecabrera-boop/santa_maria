@@ -1,0 +1,114 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<div class="breadcrumbs"><a href="{% url 'dashboard-users' %}">User management</a><span>/</span><span>{% if is_create %}Add user{% else %}{{ managed_user.username }}{% endif %}</span></div>
+<header class="page-header detail-header">
+  <div>
+    <p class="eyebrow">{{ page_eyebrow }}</p>
+    <div class="title-with-pill">
+      <h1>{{ page_title }}</h1>
+      {% if managed_user %}<span class="status-pill {% if managed_user.is_active %}status-approved{% else %}status-declined{% endif %}">{% if managed_user.is_active %}Active{% else %}Inactive{% endif %}</span>{% endif %}
+    </div>
+    <p class="subtle">{% if is_create %}Create a dashboard or reporter account for Santa Maria MDRRMO.{% else %}Update profile, role, and access for this account.{% endif %}</p>
+  </div>
+  <a class="button outline" href="{% url 'dashboard-users' %}">← Back to users</a>
+</header>
+<div class="detail-grid user-form-grid">
+  <section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">ACCOUNT</p><h2>{% if is_create %}New user details{% else %}Profile{% endif %}</h2></div></div>
+    <form method="post" class="form-stack user-form" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      {% if form.non_field_errors %}<div class="form-alert">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="name-grid">
+        <div>
+          <label for="{{ form.last_name.id_for_label }}">Last name</label>
+          {{ form.last_name }}
+          {% if form.last_name.errors %}<p class="field-error">{{ form.last_name.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.first_name.id_for_label }}">First name</label>
+          {{ form.first_name }}
+          {% if form.first_name.errors %}<p class="field-error">{{ form.first_name.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.middle_name.id_for_label }}">Middle name</label>
+          {{ form.middle_name }}
+          {% if form.middle_name.errors %}<p class="field-error">{{ form.middle_name.errors|striptags }}</p>{% endif %}
+        </div>
+      </div>
+      <p class="form-hint">Saved as <strong>Last name, First name Middle name</strong>.</p>
+      <label for="{{ form.username.id_for_label }}">Username</label>
+      {{ form.username }}
+      {% if form.username.errors %}<p class="field-error">{{ form.username.errors|striptags }}</p>{% endif %}
+      <label for="{{ form.mobile_number.id_for_label }}">Mobile number</label>
+      {{ form.mobile_number }}
+      {% if form.mobile_number.errors %}<p class="field-error">{{ form.mobile_number.errors|striptags }}</p>{% endif %}
+      <div class="coord-row">
+        <div>
+          <label for="{{ form.role.id_for_label }}">Role</label>
+          {{ form.role }}
+          {% if form.role.errors %}<p class="field-error">{{ form.role.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label for="{{ form.barangay.id_for_label }}">Barangay</label>
+          {{ form.barangay }}
+          {% if form.barangay.errors %}<p class="field-error">{{ form.barangay.errors|striptags }}</p>{% endif %}
+        </div>
+      </div>
+      <label class="check-control"><span>{{ form.is_active }} Active account</span></label>
+      {% if form.is_active.errors %}<p class="field-error">{{ form.is_active.errors|striptags }}</p>{% endif %}
+      <div class="form-divider"></div>
+      <label for="{{ form.password.id_for_label }}">{% if is_create %}Password{% else %}New password{% endif %}</label>
+      {{ form.password }}
+      {% if form.password.help_text %}<p class="form-hint">{{ form.password.help_text }}</p>{% endif %}
+      {% if form.password.errors %}<p class="field-error">{{ form.password.errors|striptags }}</p>{% endif %}
+      <label for="{{ form.password_confirm.id_for_label }}">Confirm password</label>
+      {{ form.password_confirm }}
+      {% if form.password_confirm.errors %}<p class="field-error">{{ form.password_confirm.errors|striptags }}</p>{% endif %}
+      <button type="submit" class="button primary full-button">{{ submit_label }}</button>
+    </form>
+  </section>
+  <aside class="detail-side">
+    {% if managed_user %}
+    <section class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">QUICK ACTIONS</p><h2>Access</h2></div></div>
+      <dl class="details-list">
+        <div><dt>Username</dt><dd>{{ managed_user.username }}</dd></div>
+        <div><dt>Role</dt><dd><span class="role-pill role-{{ managed_user.role }}">{{ managed_user.get_role_display }}</span></dd></div>
+        <div><dt>Joined</dt><dd>{{ managed_user.date_joined|date:"M j, Y · H:i" }}</dd></div>
+        <div><dt>Last login</dt><dd>{% if managed_user.last_login %}{{ managed_user.last_login|date:"M j, Y · H:i" }}{% else %}Never{% endif %}</dd></div>
+      </dl>
+      {% if managed_user.pk != request.user.pk %}
+      <form method="post" class="form-stack" onsubmit="return confirm('{% if managed_user.is_active %}Deactivate{% else %}Activate{% endif %} this account?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="toggle_active">
+        <button type="submit" class="button {% if managed_user.is_active %}danger-ghost{% else %}primary{% endif %} full-button">
+          {% if managed_user.is_active %}Deactivate account{% else %}Activate account{% endif %}
+        </button>
+      </form>
+      {% else %}
+      <p class="form-hint">You are editing your own account. Activation cannot be toggled here.</p>
+      {% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">HISTORY</p><h2>Management log</h2></div></div>
+      <div class="activity-list">
+        {% for log in logs %}
+        <div class="activity-item"><span class="activity-dot"></span><div><strong>{{ log.get_action_display }}</strong><p>{{ log.summary }}</p><small>{% if log.performed_by %}{{ log.performed_by.full_name }} · {% endif %}{{ log.created_at|date:"M j, Y · H:i" }}</small></div></div>
+        {% empty %}<p class="muted">No changes recorded yet.</p>{% endfor %}
+      </div>
+    </section>
+    {% else %}
+    <section class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">GUIDANCE</p><h2>Roles</h2></div></div>
+      <ul class="role-guide">
+        <li><strong>Administrator</strong> — full dashboard access including user management.</li>
+        <li><strong>MDRRMO staff</strong> — review incidents, map pins, and emergency requests.</li>
+        <li><strong>Reporter</strong> — mobile app account for submitting incidents.</li>
+      </ul>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

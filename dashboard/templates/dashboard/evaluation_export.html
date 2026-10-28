@@ -1,0 +1,20 @@
+{% load dashboard_tags %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ run.dataset_name }} · EIC evaluation report</title>
+  <style>
+    :root{font-family:Arial,sans-serif;color:#1c1c1a}body{max-width:980px;margin:30px auto;padding:0 24px}header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #b42318;padding-bottom:18px}h1{margin:4px 0 8px;font-size:28px}h2{margin:25px 0 10px;font-size:17px}.eyebrow{font-family:monospace;font-size:10px;letter-spacing:.08em;color:#777}.meta,.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{border:1px solid #deded8;border-radius:8px;padding:13px}.metric strong{display:block;font-size:22px}.metric span,.meta span{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin:10px 0 20px}th,td{padding:8px 10px;border-bottom:1px solid #deded8;text-align:left;font-size:12px}th{background:#f4f4f1;color:#555;font-family:monospace;font-size:10px;text-transform:uppercase}.print{border:1px solid #ccc;border-radius:7px;padding:9px 13px;background:white;cursor:pointer}@media print{body{margin:0 auto}.print{display:none}}
+  </style>
+</head>
+<body>
+  <header><div><p class="eyebrow">EMERGENCY INCIDENT CLASSIFIER · MDRRMO SANTA MARIA</p><h1>Model evaluation report</h1><p>{{ run.dataset_name }}</p><div class="meta"><span>Model: {{ run.model_version|default:"Not set" }}</span><span>Source: {{ run.get_source_display }}</span><span>Run date: {{ run.started_at|date:"M j, Y · H:i" }}</span><span>Total images: {{ run.total_images }}</span><span>Successful: {{ run.successful }}</span><span>Failed: {{ run.failed }}</span></div></div><button class="print" onclick="window.print()">Print / Save PDF</button></header>
+  <h2>Overall metrics</h2>
+  <div class="metric-grid"><div class="metric"><span>Accuracy</span><strong>{{ run.accuracy|percentage|floatformat:1 }}%</strong></div><div class="metric"><span>Macro precision</span><strong>{{ run.macro_precision|percentage|floatformat:1 }}%</strong></div><div class="metric"><span>Macro recall</span><strong>{{ run.macro_recall|percentage|floatformat:1 }}%</strong></div><div class="metric"><span>Macro F1</span><strong>{{ run.macro_f1|percentage|floatformat:1 }}%</strong></div><div class="metric"><span>Weighted F1</span><strong>{{ run.weighted_f1|percentage|floatformat:1 }}%</strong></div><div class="metric"><span>Mean inference</span><strong>{{ run.mean_ms|floatformat:1 }} ms</strong></div></div>
+  <h2>Per-class metrics</h2><table><thead><tr><th>Category</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr></thead><tbody>{% for key,label in categories %}{% with values=run.per_class|get_item:key %}<tr><td>{{ label }}</td><td>{{ values.precision|percentage|floatformat:1 }}%</td><td>{{ values.recall|percentage|floatformat:1 }}%</td><td>{{ values.f1|percentage|floatformat:1 }}%</td><td>{{ values.support }}</td></tr>{% endwith %}{% endfor %}</tbody></table>
+  <h2>Confusion matrix · actual rows, predicted columns</h2><table><thead><tr><th>Actual / Predicted</th>{% for key,label in categories %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>{% for row in matrix_rows %}<tr><th>{{ row.label }}</th>{% for count in row.values %}<td>{{ count }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+  <p style="font-size:10px;color:#666;margin-top:30px">Automated classifier results support staff review and are not incident verification.</p>
+</body>
+</html>

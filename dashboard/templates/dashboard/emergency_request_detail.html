@@ -1,0 +1,78 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ emergency.ref_no }}{% endblock %}
+{% block content %}
+<div class="breadcrumbs"><a href="{% url 'dashboard-incidents' %}">Reports</a><span>/</span><span>{{ emergency.ref_no }}</span></div>
+<header class="page-header detail-header">
+  <div><div class="title-with-pill"><h1>{{ emergency.ref_no }}</h1><span class="status-pill status-{{ emergency.status }}">{{ emergency.get_status_display }}</span></div><p class="subtle">Emergency request · Submitted {{ emergency.created_at|date:"M j, Y · H:i" }}{% if emergency.barangay %} · {{ emergency.barangay.name }}{% endif %}</p></div>
+  <a class="button outline" href="{% url 'dashboard-incidents' %}">← Back to reports</a>
+</header>
+<div class="detail-grid">
+  <div class="detail-main">
+    {% if emergency.image %}
+    <section class="panel photo-panel">
+      <div class="photo-frame">
+        <a href="{% url 'secure-emergency-request-image' emergency.ref_no %}" target="_blank" rel="noreferrer">
+          <img src="{% url 'secure-emergency-request-image' emergency.ref_no %}" alt="Submitted photo for {{ emergency.ref_no }}">
+        </a>
+      </div>
+      <div class="photo-meta">
+        <span>SUBMITTED PHOTO</span>
+        <span>Tap to open full size — use this to identify the incident</span>
+      </div>
+    </section>
+    {% else %}
+    <section class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">SUBMITTED PHOTO</p><h2>No photo attached</h2></div></div>
+      <p class="muted">This request was submitted without an image.</p>
+    </section>
+    {% endif %}
+    <section class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">REQUEST DETAILS</p><h2>Submitted information</h2></div></div>
+      <dl class="details-list">
+        <div>
+          <dt>Requester</dt>
+          <dd>
+            {% if emergency.reporter_name %}
+              {{ emergency.reporter_name }}
+            {% elif emergency.requester %}
+              {{ emergency.requester.full_name }}
+            {% else %}
+              Guest reporter
+            {% endif %}
+            {% if not emergency.requester %}<span class="muted">· no account</span>{% elif emergency.requester %}<span class="muted">· {{ emergency.requester.mobile_number }}</span>{% endif %}
+          </dd>
+        </div>
+        <div><dt>Contact</dt><dd>{% if emergency.contact_number %}{{ emergency.contact_number }}{% elif emergency.requester %}{{ emergency.requester.mobile_number }}{% else %}Not provided{% endif %}</dd></div>
+        <div><dt>Category</dt><dd><span class="category-cell"><span class="category-dot cat-{{ emergency.category }}"></span>{{ emergency.get_category_display }}</span></dd></div>
+        <div><dt>Barangay</dt><dd>{{ emergency.barangay|default:"Not provided" }}</dd></div>
+        <div><dt>Landmark</dt><dd>{{ emergency.landmark|default:"Not provided" }}</dd></div>
+        <div><dt>Description</dt><dd>{{ emergency.description|linebreaksbr }}</dd></div>
+        {% if emergency.incident_report %}<div><dt>Linked report</dt><dd><a class="ref-link" href="{% url 'dashboard-incident-detail' emergency.incident_report.ref_no %}">{{ emergency.incident_report.ref_no }}</a></dd></div>{% endif %}
+        <div><dt>Submitted</dt><dd>{{ emergency.created_at|date:"M j, Y · H:i:s" }}</dd></div>
+      </dl>
+    </section>
+  </div>
+  <aside class="detail-side">
+    <section class="panel verification-panel">
+      <div class="panel-heading"><div><p class="eyebrow">STAFF DECISION</p><h2>Approve or decline</h2></div></div>
+      {% if emergency.status == 'pending' %}
+      <form method="post" class="form-stack">
+        {% csrf_token %}
+        <label for="review-note">Review note <span class="muted">(optional)</span></label>
+        <textarea id="review-note" name="note" rows="3" placeholder="Add a note for the requester"></textarea>
+        <button type="submit" name="action" value="approve" class="button primary full-button">Approve request</button>
+        <button type="submit" name="action" value="decline" class="button danger-ghost full-button">Decline request</button>
+      </form>
+      <p class="form-hint">Approved requests are ready for MDRRMO response. Declined requests stay on record with your note.</p>
+      {% else %}
+      <dl class="details-list">
+        <div><dt>Decision</dt><dd><span class="status-pill status-{{ emergency.status }}">{{ emergency.get_status_display }}</span></dd></div>
+        <div><dt>Reviewed by</dt><dd>{{ emergency.reviewed_by.full_name|default:"—" }}</dd></div>
+        <div><dt>Reviewed at</dt><dd>{% if emergency.reviewed_at %}{{ emergency.reviewed_at|date:"M j, Y · H:i" }}{% else %}—{% endif %}</dd></div>
+        <div><dt>Note</dt><dd>{{ emergency.review_note|default:"No note"|linebreaksbr }}</dd></div>
+      </dl>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

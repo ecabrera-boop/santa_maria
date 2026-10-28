@@ -1,0 +1,339 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Incident map{% endblock %}
+{% block extra_head %}
+{% if not google_maps_api_key %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+{% endif %}
+{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><p class="eyebrow">GEOSPATIAL VIEW</p><h1>Incident map</h1><p class="subtle">All incident and emergency reports with locations, including GPS from the mobile app.</p></div>
+  <div class="header-actions">
+    <form method="get" class="filters-form map-filters">
+      <select name="category" class="select-control" onchange="this.form.submit()">
+        <option value="">All categories</option>
+        {% for key,label in categories %}<option value="{{ key }}" {% if filters.category == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <select name="status" class="select-control" onchange="this.form.submit()">
+        <option value="">All statuses</option>
+        {% for key,label in statuses %}<option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <label class="date-field"><span>From</span><input type="date" name="start" value="{{ filters.start }}" onchange="this.form.submit()"></label>
+      <label class="date-field"><span>To</span><input type="date" name="end" value="{{ filters.end }}" onchange="this.form.submit()"></label>
+      {% if filters.start or filters.end or filters.category or filters.status %}
+      <a class="clear-link" href="{% url 'dashboard-incident-map' %}">Clear</a>
+      {% endif %}
+    </form>
+    <a class="button outline" href="{% url 'dashboard-incidents' %}?tab=all{% if filters.category %}&category={{ filters.category|urlencode }}{% endif %}{% if filters.status %}&status={{ filters.status|urlencode }}{% endif %}{% if filters.start %}&start={{ filters.start|urlencode }}{% endif %}{% if filters.end %}&end={{ filters.end|urlencode }}{% endif %}">View all reports</a>
+  </div>
+</header>
+{% if not google_maps_api_key %}
+<section class="alert-banner map-provider-banner">
+  <span class="alert-symbol">◎</span>
+  <div>
+    <strong>Using free Esri map tiles</strong>
+    <small>Want Google Maps? Get a free demo key (no credit card) at <a class="text-link" href="https://mapsplatform.google.com/maps-demo-key/" target="_blank" rel="noopener">mapsplatform.google.com/maps-demo-key</a>, paste it as <code>GOOGLE_MAPS_API_KEY</code> in project <code>.env</code>, then restart Django.</small>
+  </div>
+</section>
+{% endif %}
+<div class="map-layout">
+  <section class="panel map-panel">
+    <div class="panel-heading">
+      <div><p class="eyebrow">{% if google_maps_api_key %}GOOGLE MAPS{% else %}MAP VIEW{% endif %}</p><h2>Mapped incidents</h2></div>
+      <span class="chart-caption">{{ pin_count }} pin{{ pin_count|pluralize }} · {{ report_count }} report{{ report_count|pluralize }}</span>
+    </div>
+    <div id="incident-map" class="incident-map-canvas" role="application" aria-label="Incident map of Santa Maria"></div>
+    <p class="form-hint map-hint">Click a pin for the photo, or pick an unmapped report below and click the map to place it.</p>
+  </section>
+  <aside class="map-side">
+    <section class="panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">FILTERED REPORTS</p><h2>All matching reports</h2></div>
+        <span class="chart-caption">{{ report_count }}</span>
+      </div>
+      <div class="map-report-list">
+        {% for item in filtered_items %}
+        <div class="map-report-item{% if item.has_map_pin %} has-pin{% endif %}" {% if item.has_map_pin %}data-focus="{{ item.ref_no }}" role="button" tabindex="0"{% endif %}>
+          <span class="incoming-thumb">{% if item.image_url %}<img src="{{ item.image_url }}" alt="" loading="lazy">{% endif %}</span>
+          <span class="incoming-info">
+            <strong>{{ item.ref_no }} <small>{{ item.category_label }}</small></strong>
+            <span><span class="kind-tag kind-{{ item.kind }}">{{ item.kind_label }}</span> {{ item.status_label }} · {% if item.barangay %}{{ item.barangay }}{% elif item.label %}{{ item.label|truncatechars:36 }}{% else %}No location{% endif %}{% if not item.has_map_pin %} · unmapped{% endif %}</span>
+          </span>
+          <a class="incoming-arrow" href="{{ item.url }}" title="Open report">→</a>
+        </div>
+        {% empty %}
+        <div class="empty-state compact">
+          <strong>No reports match</strong>
+          <p>Try clearing status or category, or open all reports.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">PLACE A PIN</p><h2>Map an incident</h2></div></div>
+      <form method="post" action="{% url 'dashboard-incident-map-save' %}" id="map-pin-form" class="form-stack">
+        {% csrf_token %}
+        <label for="map-ref">Incident</label>
+        <select name="ref_no" id="map-ref" class="select-control" required>
+          <option value="">Select a report…</option>
+          {% for report in unmapped %}
+          <option value="{{ report.ref_no }}">{{ report.ref_no }} · {{ report.get_predicted_category_display }}{% if report.barangay %} · {{ report.barangay.name }}{% endif %}</option>
+          {% endfor %}
+        </select>
+        <label for="map-label">Location label <span class="muted">(optional)</span></label>
+        <input type="text" name="label" id="map-label" maxlength="220" placeholder="Landmark or street">
+        <div class="coord-row">
+          <label>Latitude<input type="text" name="latitude" id="map-lat" required readonly placeholder="Click map"></label>
+          <label>Longitude<input type="text" name="longitude" id="map-lng" required readonly placeholder="Click map"></label>
+        </div>
+        <label for="map-notes">Notes <span class="muted">(optional)</span></label>
+        <textarea name="notes" id="map-notes" rows="2" placeholder="Access notes for responders"></textarea>
+        <button type="submit" class="button primary full-button" id="save-pin-btn" disabled>Save map pin</button>
+      </form>
+      {% if not unmapped %}<p class="muted">All matching reports already have map pins.</p>{% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">LEGEND</p><h2>Categories</h2></div></div>
+      <ul class="map-legend">
+        {% for key,label in categories %}
+        <li><span class="category-dot cat-{{ key }}"></span>{{ label }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ markers_json|json_script:"map-markers-data" }}
+<script>
+const markersData = JSON.parse(document.getElementById("map-markers-data").textContent);
+const center = { lat: {{ map_center_lat }}, lng: {{ map_center_lng }} };
+const zoom = {{ map_zoom }};
+const apiKey = "{{ google_maps_api_key|escapejs }}";
+const focusRef = new URLSearchParams(location.search).get("focus");
+const categoryColors = {
+  fire: "#b42318", crime: "#7057a8", medical: "#287a64", accident: "#c27b19", disaster: "#4473a4", other: "#77776f"
+};
+let map, draftMarker;
+const markerByRef = {};
+
+function focusMarker(refNo) {
+  const entry = markerByRef[refNo];
+  if (!entry) return;
+  if (entry.google) {
+    map.setCenter(entry.position);
+    map.setZoom(16);
+    entry.info.open({ map, anchor: entry.marker });
+  } else if (entry.leaflet) {
+    map.setView(entry.position, 16);
+    entry.marker.openPopup();
+  }
+}
+
+document.querySelectorAll("[data-focus]").forEach((el) => {
+  const activate = () => focusMarker(el.getAttribute("data-focus"));
+  el.addEventListener("click", (event) => {
+    if (event.target.closest("a")) return;
+    activate();
+  });
+  el.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      activate();
+    }
+  });
+});
+
+function syncSaveButton() {
+  const ref = document.getElementById("map-ref").value;
+  const lat = document.getElementById("map-lat").value;
+  const lng = document.getElementById("map-lng").value;
+  document.getElementById("save-pin-btn").disabled = !(ref && lat && lng);
+}
+
+document.getElementById("map-ref")?.addEventListener("change", syncSaveButton);
+
+function setDraftCoords(lat, lng) {
+  document.getElementById("map-lat").value = Number(lat).toFixed(6);
+  document.getElementById("map-lng").value = Number(lng).toFixed(6);
+  syncSaveButton();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function markerPopupHtml(item) {
+  const ref = escapeHtml(item.ref_no);
+  const url = escapeHtml(item.url);
+  const kind = escapeHtml(item.kind_label || "Report");
+  const kindClass = escapeHtml(item.kind || "incident");
+  const category = escapeHtml(item.category_label);
+  const status = escapeHtml(item.status_label);
+  const place = escapeHtml(item.barangay || item.label || "");
+  const photo = item.image_url
+    ? `<a class="map-info-photo" href="${url}" title="Open ${ref}"><img src="${escapeHtml(item.image_url)}" alt="Photo for ${ref}" loading="lazy"></a>`
+    : `<div class="map-info-photo empty" aria-hidden="true">No photo</div>`;
+  return `<div class="map-info">${photo}<div class="map-info-body"><strong><a href="${url}">${ref}</a></strong><span><span class="kind-tag kind-${kindClass}">${kind}</span> ${category} · ${status}</span><span>${place}</span></div></div>`;
+}
+
+function markerIconGoogle(category) {
+  const color = categoryColors[category] || categoryColors.other;
+  return {
+    path: google.maps.SymbolPath.CIRCLE,
+    fillColor: color,
+    fillOpacity: 1,
+    strokeColor: "#ffffff",
+    strokeWeight: 2,
+    scale: 9,
+  };
+}
+
+function markerIconLeaflet(category) {
+  const color = categoryColors[category] || categoryColors.other;
+  return L.divIcon({
+    className: "eic-map-pin",
+    html: `<span style="background:${color}"></span>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+}
+
+function initGoogleMap() {
+  const el = document.getElementById("incident-map");
+  if (!el || !window.google?.maps) return;
+  map = new google.maps.Map(el, {
+    center,
+    zoom,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: true,
+    styles: [{ featureType: "poi", stylers: [{ visibility: "off" }] }],
+  });
+  const bounds = new google.maps.LatLngBounds();
+  let focused = null;
+  markersData.forEach((item) => {
+    const position = { lat: item.lat, lng: item.lng };
+    const marker = new google.maps.Marker({
+      position,
+      map,
+      title: item.ref_no,
+      icon: markerIconGoogle(item.category),
+    });
+    const info = new google.maps.InfoWindow({
+      content: markerPopupHtml(item),
+    });
+    marker.addListener("click", () => info.open({ map, anchor: marker }));
+    markerByRef[item.ref_no] = { google: true, marker, info, position };
+    bounds.extend(position);
+    if (focusRef && item.ref_no === focusRef) focused = position;
+  });
+  if (focused) {
+    map.setCenter(focused);
+    map.setZoom(16);
+  } else if (markersData.length > 1) {
+    map.fitBounds(bounds, 48);
+  } else if (markersData.length === 1) {
+    map.setCenter({ lat: markersData[0].lat, lng: markersData[0].lng });
+    map.setZoom(15);
+  }
+  map.addListener("click", (event) => {
+    const lat = event.latLng.lat();
+    const lng = event.latLng.lng();
+    setDraftCoords(lat, lng);
+    if (draftMarker) draftMarker.setMap(null);
+    draftMarker = new google.maps.Marker({
+      position: { lat, lng },
+      map,
+      draggable: true,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: "#1c1c1a",
+        fillOpacity: 0.9,
+        strokeColor: "#fff",
+        strokeWeight: 2,
+        scale: 8,
+      },
+    });
+    draftMarker.addListener("dragend", (dragEvent) => {
+      setDraftCoords(dragEvent.latLng.lat(), dragEvent.latLng.lng());
+    });
+  });
+}
+
+function initLeafletMap() {
+  const el = document.getElementById("incident-map");
+  if (!el || !window.L) return;
+  map = L.map(el, { scrollWheelZoom: true }).setView([center.lat, center.lng], zoom);
+  // Esri World Street Map — free for light app use, no API key required.
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 19,
+    attribution: "Tiles &copy; Esri &mdash; Source: Esri, OpenStreetMap",
+  }).addTo(map);
+
+  const group = [];
+  let focused = null;
+  markersData.forEach((item) => {
+    const marker = L.marker([item.lat, item.lng], {
+      title: item.ref_no,
+      icon: markerIconLeaflet(item.category),
+    }).addTo(map);
+    marker.bindPopup(markerPopupHtml(item), { maxWidth: 280, minWidth: 220 });
+    markerByRef[item.ref_no] = { leaflet: true, marker, position: [item.lat, item.lng] };
+    group.push(marker);
+    if (focusRef && item.ref_no === focusRef) focused = [item.lat, item.lng];
+  });
+
+  if (focused) {
+    map.setView(focused, 16);
+  } else if (group.length > 1) {
+    map.fitBounds(L.featureGroup(group).getBounds().pad(0.15));
+  } else if (group.length === 1) {
+    map.setView([markersData[0].lat, markersData[0].lng], 15);
+  }
+
+  map.on("click", (event) => {
+    const { lat, lng } = event.latlng;
+    setDraftCoords(lat, lng);
+    if (draftMarker) map.removeLayer(draftMarker);
+    draftMarker = L.marker([lat, lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: "eic-map-pin draft",
+        html: '<span style="background:#1c1c1a"></span>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      }),
+    }).addTo(map);
+    draftMarker.on("dragend", () => {
+      const pos = draftMarker.getLatLng();
+      setDraftCoords(pos.lat, pos.lng);
+    });
+  });
+
+  // Leaflet needs a size refresh after layout.
+  setTimeout(() => map.invalidateSize(), 50);
+}
+
+if (apiKey) {
+  const script = document.createElement("script");
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=initGoogleMap`;
+  script.async = true;
+  script.defer = true;
+  window.initGoogleMap = initGoogleMap;
+  document.head.appendChild(script);
+} else {
+  const script = document.createElement("script");
+  script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  script.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=";
+  script.crossOrigin = "";
+  script.onload = initLeafletMap;
+  document.head.appendChild(script);
+}
+</script>
+{% endblock %}

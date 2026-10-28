@@ -1,0 +1,59 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Emergency requests{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><p class="eyebrow">RESPONSE QUEUE</p><h1>Emergency requests</h1><p class="subtle">Approve or decline assistance requests from the community.</p></div>
+</header>
+<section class="panel list-panel">
+  <div class="tabs-row">
+    <nav class="tabs" aria-label="Request tabs">
+      <a class="{% if filters.tab == 'pending' or not filters.tab %}active{% endif %}" href="?tab=pending&q={{ filters.q|urlencode }}">Pending <span>{{ counts.pending }}</span></a>
+      <a class="{% if filters.tab == 'approved' %}active{% endif %}" href="?tab=approved&q={{ filters.q|urlencode }}">Approved <span>{{ counts.approved }}</span></a>
+      <a class="{% if filters.tab == 'declined' %}active{% endif %}" href="?tab=declined&q={{ filters.q|urlencode }}">Declined <span>{{ counts.declined }}</span></a>
+      <a class="{% if filters.tab == 'all' %}active{% endif %}" href="?tab=all&q={{ filters.q|urlencode }}">All <span>{{ counts.all }}</span></a>
+    </nav>
+    <form method="get" class="filters-form compact-search">
+      <input type="hidden" name="tab" value="{{ filters.tab|default:'pending' }}">
+      <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" name="q" value="{{ filters.q }}" placeholder="Search ref no., requester, landmark"></label>
+    </form>
+  </div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Request</th><th>Category</th><th>Barangay</th><th>Requester</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for item in requests %}
+      <tr>
+        <td>
+          <div class="report-cell">
+            <span class="table-thumb">
+              {% if item.image %}
+              <img src="{% url 'secure-emergency-request-image' item.ref_no %}" alt="" loading="lazy">
+              {% endif %}
+            </span>
+            <span>
+              <a class="ref-link" href="{% url 'dashboard-emergency-request-detail' item.ref_no %}">{{ item.ref_no }}</a>
+              <small>{{ item.landmark|default:"No landmark" }}</small>
+            </span>
+          </div>
+        </td>
+        <td><span class="category-cell"><span class="category-dot cat-{{ item.category }}"></span>{{ item.get_category_display }}</span></td>
+        <td>{{ item.barangay|default:"—" }}</td>
+        <td>
+          {% if item.reporter_name %}{{ item.reporter_name }}{% elif item.requester %}{{ item.requester.full_name }}{% else %}Guest reporter{% endif %}
+          <small class="cell-subline">{% if item.contact_number %}{{ item.contact_number }}{% elif item.requester %}{{ item.requester.mobile_number }}{% else %}No contact{% endif %}{% if not item.requester %} · guest{% endif %}</small>
+        </td>
+        <td>{{ item.created_at|date:"M j, Y" }}<small class="cell-subline">{{ item.created_at|date:"H:i" }}</small></td>
+        <td><span class="status-pill status-{{ item.status }}">{{ item.get_status_display }}</span></td>
+        <td><a class="row-action" href="{% url 'dashboard-emergency-request-detail' item.ref_no %}">{% if item.status == 'pending' %}Review{% else %}View{% endif %} →</a></td>
+      </tr>
+      {% empty %}<tr><td colspan="7"><div class="empty-state"><span class="empty-icon">✓</span><strong>No requests in this tab</strong><p>New emergency requests will appear here for review.</p></div></td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if page_count > 1 %}<div class="pagination-row">
+    <span>Page {{ page }} of {{ page_count }}</span>
+    <div class="pagination-buttons">
+      {% if page > 1 %}<a class="button small outline" href="?{% for key,value in filters.items %}{% if key != 'page' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}page={{ page|add:'-1' }}">Previous</a>{% endif %}
+      {% if page < page_count %}<a class="button small outline" href="?{% for key,value in filters.items %}{% if key != 'page' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}page={{ page|add:'1' }}">Next</a>{% endif %}
+    </div>
+  </div>{% endif %}
+</section>
+{% endblock %}

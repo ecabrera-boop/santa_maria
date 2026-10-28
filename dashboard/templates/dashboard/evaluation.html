@@ -1,0 +1,91 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_tags %}
+{% load evaluation_tags %}
+{% block title %}Model evaluation{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><p class="eyebrow">CLASSIFIER QUALITY</p><h1>Model evaluation</h1><p class="subtle">Review held-out test results. Predictions are not used as incident verification.</p></div>
+  {% if runs %}<form method="get"><label for="run-select" class="sr-only">Test run</label><select id="run-select" name="run" class="select-control" onchange="this.form.submit()">{% for item in runs %}<option value="{{ item.id }}" {% if run.id == item.id %}selected{% endif %}>{{ item.dataset_name }} · {{ item.started_at|date:"M j, Y" }}</option>{% endfor %}</select></form>{% endif %}
+</header>
+<section class="panel zip-eval-panel">
+  <div class="panel-heading"><div><p class="eyebrow">BULK TESTING</p><h2>Upload a test dataset</h2><p class="subtle">ZIP folders named fire, crime, medical, accident, and disaster.</p></div></div>
+  <form method="post" action="{% url 'dashboard-evaluation-start' %}" enctype="multipart/form-data" class="zip-form">
+    {% csrf_token %}
+    <label class="file-picker"><span>Choose a ZIP file</span><input type="file" name="dataset_zip" accept=".zip,application/zip" required></label>
+    <input type="text" name="dataset_name" maxlength="180" placeholder="Dataset name" required>
+    <button type="submit" class="button primary">Start evaluation <span>→</span></button>
+  </form>
+</section>
+{% if run %}
+<section class="run-summary panel">
+  <div><p class="eyebrow">SELECTED TEST RUN</p><h2>{{ run.dataset_name }}</h2><p class="subtle">{% if run.model_version %}{{ run.model_version.name }} {{ run.model_version.version }}{% else %}No model version{% endif %} · {{ run.get_source_display }} · <span id="run-progress">{{ run.successful }} / {{ run.total_images }} complete</span> · {{ run.started_at|date:"M j, Y · H:i" }}</p></div>
+  <div class="run-actions"><span id="run-status" class="status-pill status-{{ run.status }}" data-status="{{ run.status }}">{{ run.get_status_display }}</span><a class="button small outline" href="{% url 'dashboard-evaluation-export' %}?run={{ run.id }}&format=csv">Export CSV</a><a class="button small outline" href="{% url 'dashboard-evaluation-export' %}?run={{ run.id }}&format=html" target="_blank" rel="noreferrer">Printable report</a></div>
+</section>
+<section class="stat-grid eval-stats">
+  <article class="stat-card"><span class="stat-label">ACCURACY</span><strong>{% if run.accuracy != None %}{{ run.accuracy|percentage|floatformat:1 }}%{% else %}—{% endif %}</strong><small>Exact label match</small></article>
+  <article class="stat-card"><span class="stat-label">MACRO PRECISION</span><strong>{% if run.macro_precision != None %}{{ run.macro_precision|percentage|floatformat:1 }}%{% else %}—{% endif %}</strong><small>Equal class weight</small></article>
+  <article class="stat-card"><span class="stat-label">MACRO RECALL</span><strong>{% if run.macro_recall != None %}{{ run.macro_recall|percentage|floatformat:1 }}%{% else %}—{% endif %}</strong><small>Equal class weight</small></article>
+  <article class="stat-card"><span class="stat-label">MACRO F1</span><strong>{% if run.macro_f1 != None %}{{ run.macro_f1|percentage|floatformat:1 }}%{% else %}—{% endif %}</strong><small>Equal class weight</small></article>
+  <article class="stat-card"><span class="stat-label">WEIGHTED F1</span><strong>{% if run.weighted_f1 != None %}{{ run.weighted_f1|percentage|floatformat:1 }}%{% else %}—{% endif %}</strong><small>Weighted by support</small></article>
+</section>
+<div class="content-grid">
+  <section class="panel matrix-panel">
+    <div class="panel-heading"><div><p class="eyebrow">PREDICTION QUALITY</p><h2>Confusion matrix</h2></div><span class="chart-caption">Rows: actual · columns: predicted</span></div>
+    <div class="matrix-wrap"><table class="matrix-table"><thead><tr><th>Actual ↓ / Pred. →</th>{% for key,label in categories %}<th>{{ label|slice:":3" }}</th>{% endfor %}<th>Total</th></tr></thead><tbody>
+      {% for row in matrix_rows %}<tr><th>{{ row.label }}</th>{% for cell in row.cells %}<td class="{% if cell.diagonal %}matrix-diagonal{% endif %}" style="background-color:rgba(180,35,24,{{ cell.alpha }})">{{ cell.value }}</td>{% endfor %}<td class="total-cell">{{ row.total }}</td></tr>{% endfor %}
+      {% if matrix_rows %}<tr><th>Total</th>{% for total in column_totals %}<td class="total-cell">{{ total }}</td>{% endfor %}<td class="total-cell">{{ run.successful }}</td></tr>{% endif %}
+    </tbody></table></div>
+  </section>
+  <section class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">PER-CLASS METRICS</p><h2>Category performance</h2></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Category</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr></thead><tbody>
+      {% for key,label in categories %}{% with metric=run.per_class|get_item:key %}<tr><td><span class="category-cell"><span class="category-dot cat-{{ key }}"></span>{{ label }}</span></td><td>{{ metric.precision|percentage|floatformat:1 }}%</td><td>{{ metric.recall|percentage|floatformat:1 }}%</td><td>{{ metric.f1|percentage|floatformat:1 }}%</td><td>{{ metric.support }}</td></tr>{% endwith %}{% empty %}<tr><td colspan="5">No evaluation metrics yet.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</div>
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">INFERENCE</p><h2>Processing time</h2></div></div>
+  <div class="timing-grid"><div><span>Mean</span><strong>{{ run.mean_ms|floatformat:1|default:"—" }} ms</strong></div><div><span>Median</span><strong>{{ run.median_ms|floatformat:1|default:"—" }} ms</strong></div><div><span>Fastest</span><strong>{{ run.min_ms|floatformat:1|default:"—" }} ms</strong></div><div><span>Slowest</span><strong>{{ run.max_ms|floatformat:1|default:"—" }} ms</strong></div><div><span>Mean mobile round trip</span><strong>{{ run.mean_roundtrip_ms|floatformat:1|default:"—" }} ms</strong></div></div>
+</section>
+{% if training_history %}
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">TRAINING HISTORY</p><h2>Learning curves</h2></div></div>
+  <div class="content-grid training-curves"><div class="training-chart-wrap"><h3>Accuracy</h3><canvas id="accuracy-chart" aria-label="Training accuracy"></canvas></div><div class="training-chart-wrap"><h3>Loss</h3><canvas id="loss-chart" aria-label="Training loss"></canvas></div></div>
+  {{ training_history|json_script:"training-history-data" }}
+</section>
+{% endif %}
+{% else %}
+<section class="panel empty-state"><span class="empty-icon">◫</span><strong>No evaluation runs yet</strong><p>Start an evaluation run from the management command or the admin-enabled mobile app.</p><a class="button outline" href="/admin/evaluation/testrun/">View test runs</a></section>
+{% endif %}
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">MODEL COMPARISON</p><h2>Latest run per model</h2></div></div>
+  <div class="table-scroll"><table><thead><tr><th>Model</th><th>Accuracy</th><th>Macro F1</th><th>Precision</th><th>Recall</th><th>Mean inference</th><th>File size</th><th>Active</th></tr></thead><tbody>
+    {% for row in comparison %}<tr><td>{{ row.model.name }} <small class="cell-subline">{{ row.model.version }}</small></td><td>{% if row.run.accuracy != None %}{{ row.run.accuracy|percentage|floatformat:1 }}%{% else %}—{% endif %}</td><td>{% if row.run.macro_f1 != None %}{{ row.run.macro_f1|percentage|floatformat:1 }}%{% else %}—{% endif %}</td><td>{% if row.run.macro_precision != None %}{{ row.run.macro_precision|percentage|floatformat:1 }}%{% else %}—{% endif %}</td><td>{% if row.run.macro_recall != None %}{{ row.run.macro_recall|percentage|floatformat:1 }}%{% else %}—{% endif %}</td><td>{% if row.run.mean_ms != None %}{{ row.run.mean_ms|floatformat:1 }} ms{% else %}—{% endif %}</td><td>{% if row.model.model_file %}{{ row.model.model_file.size|filesizeformat }}{% else %}—{% endif %}</td><td>{% if row.model.is_active %}<span class="tag active-tag">Selected</span>{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="empty-table">No model versions have been uploaded.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<div class="rating-legend"><strong>Interpretation guide</strong><span>4.51–5.00 Very High</span><span>3.51–4.50 High</span><span>2.51–3.50 Moderate</span><span>1.51–2.50 Low</span><span>1.00–1.50 Very Low</span></div>
+{% endblock %}
+{% block scripts %}
+{% if run and run.status == "running" %}
+<script>
+const progressUrl="{% url 'dashboard-evaluation-progress' run.id %}";
+const progressText=document.getElementById("run-progress");
+const statusBadge=document.getElementById("run-status");
+async function pollRun(){try{const response=await fetch(progressUrl);if(!response.ok)return;const run=await response.json();progressText.textContent=`${run.successful} / ${run.total_images} complete · ${run.failed} failed`;if(run.status!=="running")location.reload();}catch(_){}}
+setInterval(pollRun,2000);
+</script>
+{% endif %}
+{% if training_history %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const historyData=JSON.parse(document.getElementById("training-history-data").textContent);
+function curveChart(canvasId, keys){
+  const datasets=keys.filter((key)=>Array.isArray(historyData[key])).map((key,index)=>({label:key.replaceAll("_"," "),data:historyData[key],borderColor:index%2?"#b42318":"#4473a4",backgroundColor:index%2?"#b42318":"#4473a4",tension:.3}));
+  if(!datasets.length)return;
+  const epochs=Array.from({length:Math.max(...datasets.map((set)=>set.data.length))},(_,index)=>index+1);
+  new Chart(document.getElementById(canvasId),{type:"line",data:{labels:epochs,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}},scales:{x:{title:{display:true,text:"Epoch"}},y:{beginAtZero:true}}}});
+}
+curveChart("accuracy-chart",["accuracy","val_accuracy"]);curveChart("loss-chart",["loss","val_loss"]);
+</script>
+{% endif %}
+{% endblock %}

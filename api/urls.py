@@ -1,0 +1,61 @@
+from django.urls import path
+
+from .views import (
+    BarangayListView,
+    CategoryListView,
+    ClassifyView,
+    EmergencyRequestDetailView,
+    EmergencyRequestListCreateView,
+    EmergencyRequestStatusView,
+    EvalRecordPatchView,
+    EvalRunClassifyView,
+    EvalRunDetailView,
+    EvalRunFinishView,
+    EvalRunListCreateView,
+    HotlineListView,
+    LoginView,
+    LogoutView,
+    MeView,
+    PushTokenView,
+    RegisterView,
+    ReportDetailView,
+    ReportDraftView,
+    ReportListView,
+    ReportSendView,
+)
+from incidents.views import secure_emergency_request_image, secure_report_image
+from .health import healthz
+
+urlpatterns = [
+    path("auth/register/", RegisterView.as_view(), name="api-register"),
+    path("auth/login/", LoginView.as_view(), name="api-login"),
+    path("auth/logout/", LogoutView.as_view(), name="api-logout"),
+    path("me/", MeView.as_view(), name="api-me"),
+    path("me/push-token/", PushTokenView.as_view(), name="api-push-token"),
+    path("barangays/", BarangayListView.as_view(), name="api-barangays"),
+    path("hotlines/", HotlineListView.as_view(), name="api-hotlines"),
+    path("categories/", CategoryListView.as_view(), name="api-categories"),
+    path("classify/", ClassifyView.as_view(), name="api-classify"),
+    path("reports/", ReportListView.as_view(), name="api-reports"),
+    path("reports/<str:ref_no>/", ReportDetailView.as_view(), name="api-report-detail"),
+    path("reports/<str:ref_no>/image/", secure_report_image, name="api-report-image"),
+    path("reports/<str:ref_no>/send/", ReportSendView.as_view(), name="api-report-send"),
+    path("emergency-requests/", EmergencyRequestListCreateView.as_view(), name="api-emergency-requests"),
+    path(
+        "emergency-requests/<str:ref_no>/status/",
+        EmergencyRequestStatusView.as_view(),
+        name="api-emergency-request-status",
+    ),
+    path("emergency-requests/<str:ref_no>/", EmergencyRequestDetailView.as_view(), name="api-emergency-request-detail"),
+    path(
+        "emergency-requests/<str:ref_no>/image/",
+        secure_emergency_request_image,
+        name="api-emergency-request-image",
+    ),
+    path("eval/runs/", EvalRunListCreateView.as_view(), name="api-eval-runs"),
+    path("eval/runs/<int:run_id>/classify/", EvalRunClassifyView.as_view(), name="api-eval-classify"),
+    path("eval/runs/<int:run_id>/finish/", EvalRunFinishView.as_view(), name="api-eval-finish"),
+    path("eval/runs/<int:run_id>/", EvalRunDetailView.as_view(), name="api-eval-detail"),
+    path("eval/records/<int:record_id>/", EvalRecordPatchView.as_view(), name="api-eval-record"),
+    path("healthz/", healthz, name="api-health"),
+]

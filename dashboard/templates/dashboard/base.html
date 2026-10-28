@@ -1,0 +1,67 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f4f1">
+  <title>{% block title %}EIC Admin{% endblock %} · MDRRMO Santa Maria</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'dashboard/favicon.svg' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'dashboard/app.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="{% url 'dashboard-home' %}">
+        <span class="brand-mark">E</span>
+        <span class="brand-copy"><strong>EIC Admin</strong><small>MDRRMO · Santa Maria</small></span>
+      </a>
+      <div class="sidebar-rule"></div>
+      <nav class="nav-list" aria-label="Main navigation">
+        <a class="nav-link {% if active_page == 'dashboard' %}active{% endif %}" href="{% url 'dashboard-home' %}">
+          <span class="nav-icon">⌂</span><span>Dashboard</span>
+        </a>
+        <a class="nav-link {% if active_page == 'incidents' %}active{% endif %}" href="{% url 'dashboard-incidents' %}">
+          <span class="nav-icon">▤</span><span>Reports</span>
+          {% if inbox_count %}<span class="nav-badge">{{ inbox_count }}</span>{% endif %}
+        </a>
+        <a class="nav-link {% if active_page == 'incident-map' %}active{% endif %}" href="{% url 'dashboard-incident-map' %}">
+          <span class="nav-icon">◎</span><span>Incident map</span>
+        </a>
+        {% if request.user.is_admin_role %}
+        <a class="nav-link {% if active_page == 'user-management' %}active{% endif %}" href="{% url 'dashboard-users' %}">
+          <span class="nav-icon">☺</span><span>User management</span>
+        </a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="signed-in">
+          <span class="avatar">{{ request.user.full_name|default:request.user.mobile_number|first|upper }}</span>
+          <span class="signed-copy"><strong>{{ request.user.full_name|default:request.user.mobile_number }}</strong><small>{{ request.user.get_role_display }}</small></span>
+        </div>
+        <form method="post" action="{% url 'dashboard-signout' %}">
+          {% csrf_token %}
+          <button class="signout" type="submit">↗ <span>Sign out</span></button>
+        </form>
+      </div>
+    </aside>
+    <main class="main-content">
+      <div class="mobile-brand">
+        <a class="brand" href="{% url 'dashboard-home' %}"><span class="brand-mark">E</span><span class="brand-copy"><strong>EIC Admin</strong><small>MDRRMO · Santa Maria</small></span></a>
+      </div>
+      {% if messages %}
+        <div class="messages" aria-live="polite">
+          {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+      <footer class="page-footer"><span>Emergency Incident Classifier</span><span>Santa Maria, Ilocos Sur</span></footer>
+    </main>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

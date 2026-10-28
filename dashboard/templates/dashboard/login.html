@@ -1,0 +1,33 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Staff sign in · EIC Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'dashboard/app.css' %}">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <a class="brand login-brand" href="/login/"><span class="brand-mark">E</span><span class="brand-copy"><strong>EIC Admin</strong><small>MDRRMO · Santa Maria</small></span></a>
+    <p class="eyebrow">STAFF ACCESS</p>
+    <h1>Good to have you back.</h1>
+    <p class="subtle">Sign in to review incoming incidents and keep response information up to date.</p>
+    {% if form.non_field_errors %}<div class="form-alert" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <form method="post" class="form-stack">
+      {% csrf_token %}
+      <label for="{{ form.username.id_for_label }}">Username</label>
+      <input id="{{ form.username.id_for_label }}" name="username" value="{{ form.username.value|default:'' }}" autocomplete="username" placeholder="Enter your username" required>
+      {% for error in form.username.errors %}<span class="field-error">{{ error }}</span>{% endfor %}
+      <label for="{{ form.password.id_for_label }}">Password</label>
+      <input id="{{ form.password.id_for_label }}" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+      {% for error in form.password.errors %}<span class="field-error">{{ error }}</span>{% endfor %}
+      <button type="submit" class="button primary full-button">Sign in to dashboard <span aria-hidden="true">→</span></button>
+    </form>
+    <div class="login-note"><span class="note-dot"></span>Authorized MDRRMO staff only</div>
+  </main>
+  <div class="login-foot">EIC · Emergency Incident Classifier</div>
+</body>
+</html>

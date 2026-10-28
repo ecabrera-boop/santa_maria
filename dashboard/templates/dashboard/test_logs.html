@@ -1,0 +1,50 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_tags %}
+{% block title %}Test logs{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><p class="eyebrow">EVALUATION RECORDS</p><h1>Test logs</h1><p class="subtle">Inspect each labeled image, prediction, and timing result.</p></div>
+  <a class="button outline" href="?{% for key,value in filters.items %}{% if key != 'export' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}export=csv">Export CSV <span>↓</span></a>
+</header>
+<section class="stat-grid logs-stats">
+  <article class="stat-card"><span class="stat-label">SUBMISSIONS</span><strong>{{ total_submissions }}</strong><small>All test runs</small></article>
+  <article class="stat-card"><span class="stat-label">SUCCESSFUL</span><strong>{{ successful_count }}</strong><small>Valid images</small></article>
+  <article class="stat-card"><span class="stat-label">FAILED</span><strong>{{ failed_count }}</strong><small>Validation or inference</small></article>
+  <article class="stat-card"><span class="stat-label">CORRECT</span><strong>{{ correct_count }}</strong><small>Reference matched</small></article>
+  <article class="stat-card"><span class="stat-label">INCORRECT</span><strong>{{ incorrect_count }}</strong><small>Valid but misclassified</small></article>
+  <article class="stat-card"><span class="stat-label">APP LABEL AGREEMENT</span><strong>{% if agreement_percent != None %}{{ agreement_percent|floatformat:0 }}%{% else %}—{% endif %}</strong><small>Model and app display</small></article>
+</section>
+<section class="panel filter-panel">
+  <form method="get" class="filters-form">
+    <select name="run" class="select-control"><option value="">All runs</option>{% for run in runs %}<option value="{{ run.id }}" {% if filters.run == run.id|stringformat:"s" %}selected{% endif %}>{{ run.dataset_name }} · {{ run.started_at|date:"M j" }}</option>{% endfor %}</select>
+    <select name="result" class="select-control"><option value="">All results</option><option value="correct" {% if filters.result == "correct" %}selected{% endif %}>Correct</option><option value="incorrect" {% if filters.result == "incorrect" %}selected{% endif %}>Incorrect</option><option value="failed" {% if filters.result == "failed" %}selected{% endif %}>Failed</option></select>
+    <select name="reference" class="select-control"><option value="">All references</option>{% for key,label in categories %}<option value="{{ key }}" {% if filters.reference == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <select name="predicted" class="select-control"><option value="">All predictions</option>{% for key,label in categories %}<option value="{{ key }}" {% if filters.predicted == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <button type="submit" class="button primary">Apply</button><a class="clear-link" href="{% url 'dashboard-test-logs' %}">Clear</a>
+  </form>
+</section>
+<section class="panel list-panel">
+  <div class="panel-heading"><div><p class="eyebrow">IMAGE RECORDS</p><h2>Evaluation log</h2></div></div>
+  <div class="table-scroll"><table><thead><tr><th>Test ID / Image</th><th>Reference</th><th>Predicted</th><th>App showed</th><th>Confidence</th><th>Result</th><th>Server</th><th>Round trip</th><th>Validation</th><th>Time</th></tr></thead><tbody>
+    {% for record in records %}<tr>
+      <td><div class="report-cell">{% if record.image %}<span class="table-thumb"><img src="{% url 'dashboard-evaluation-image' record.id %}" alt="" loading="lazy"></span>{% endif %}<span><strong>#{{ record.id }}</strong><small>{{ record.image_name }}</small></span></div></td>
+      <td>{{ record.get_reference_label_display }}</td>
+      <td>{% if record.predicted_label %}{{ record.get_predicted_label_display }}{% else %}—{% endif %}</td>
+      <td>{% if record.app_displayed_label %}{{ record.get_app_displayed_label_display }}{% else %}—{% endif %}</td>
+      <td>{% if record.confidence != None %}{{ record.confidence|percentage|floatformat:1 }}%{% else %}—{% endif %}</td>
+      <td>{% if record.validation_status == "failed" %}<span class="tag low-tag">FAILED</span>{% elif record.is_correct %}<span class="result-correct">✓ Correct</span>{% else %}<span class="result-incorrect">× Incorrect</span>{% endif %}</td>
+      <td>{% if record.processing_time_ms != None %}{{ record.processing_time_ms|floatformat:1 }} ms{% else %}—{% endif %}</td>
+      <td>{% if record.client_roundtrip_ms != None %}{{ record.client_roundtrip_ms|floatformat:0 }} ms{% else %}—{% endif %}</td>
+      <td>{{ record.get_validation_status_display }}</td><td>{{ record.created_at|date:"M j, H:i" }}</td>
+    </tr>{% empty %}<tr><td colspan="10" class="empty-table">No test records match these filters.</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if page_count > 1 %}<div class="pagination-row"><span>Page {{ page }} of {{ page_count }}</span><div class="pagination-buttons">
+    {% if page > 1 %}<a class="button small outline" href="?{% for key,value in filters.items %}{% if key != 'page' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}page={{ page|add:'-1' }}">Previous</a>{% endif %}
+    {% if page < page_count %}<a class="button small outline" href="?{% for key,value in filters.items %}{% if key != 'page' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}page={{ page|add:'1' }}">Next</a>{% endif %}
+  </div></div>{% endif %}
+</section>
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">ERROR ANALYSIS</p><h2>Misclassified images</h2></div></div>
+  {% if misclassified %}<div class="misclassified-grid">{% for record in misclassified %}<article class="misclassified-card">{% if record.image %}<img class="misclassified-thumb" src="{% url 'dashboard-evaluation-image' record.id %}" alt="" loading="lazy">{% else %}<span class="misclass-mark">!</span>{% endif %}<div><strong>Actual: {{ record.get_reference_label_display }} → Predicted: {{ record.get_predicted_label_display }}</strong><p>{{ record.image_name }} · {{ record.confidence|percentage|floatformat:1 }}% confidence</p></div></article>{% endfor %}</div>{% else %}<p class="muted">No misclassified images recorded.</p>{% endif %}
+</section>
+{% endblock %}

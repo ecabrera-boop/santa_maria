@@ -1,0 +1,43 @@
+from django.urls import path
+
+from .views import (
+    dashboard_home,
+    emergency_request_detail,
+    emergency_request_list,
+    evaluation_page,
+    evaluation_export,
+    evaluation_image,
+    evaluation_progress,
+    evaluation_start,
+    incident_detail,
+    incident_list,
+    incident_map,
+    incident_map_save_pin,
+    incoming_json,
+    staff_logout,
+    test_logs_page,
+    user_management_create,
+    user_management_edit,
+    user_management_list,
+)
+
+urlpatterns = [
+    path("", dashboard_home, name="dashboard-home"),
+    path("incoming.json", incoming_json, name="dashboard-incoming"),
+    path("incidents/", incident_list, name="dashboard-incidents"),
+    path("incidents/<str:ref_no>/", incident_detail, name="dashboard-incident-detail"),
+    path("incident-map/", incident_map, name="dashboard-incident-map"),
+    path("incident-map/save/", incident_map_save_pin, name="dashboard-incident-map-save"),
+    path("emergency-requests/", emergency_request_list, name="dashboard-emergency-requests"),
+    path("emergency-requests/<str:ref_no>/", emergency_request_detail, name="dashboard-emergency-request-detail"),
+    path("users/", user_management_list, name="dashboard-users"),
+    path("users/new/", user_management_create, name="dashboard-user-create"),
+    path("users/<int:user_id>/", user_management_edit, name="dashboard-user-edit"),
+    path("evaluation/", evaluation_page, name="dashboard-evaluation"),
+    path("evaluation/export/", evaluation_export, name="dashboard-evaluation-export"),
+    path("evaluation/records/<int:record_id>/image/", evaluation_image, name="dashboard-evaluation-image"),
+    path("evaluation/<int:run_id>/progress.json", evaluation_progress, name="dashboard-evaluation-progress"),
+    path("evaluation/start/", evaluation_start, name="dashboard-evaluation-start"),
+    path("test-logs/", test_logs_page, name="dashboard-test-logs"),
+    path("signout/", staff_logout, name="dashboard-signout"),
+]
